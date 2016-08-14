@@ -104,10 +104,12 @@ import java.util.concurrent.TimeUnit;
  * method is called to start a new one specifically.
  */
 public class ProviderHelper {
+    public final ProviderReader mReader;
     private final Context mContext;
     private final ContentResolver mContentResolver;
     private OperationLog mLog;
     private int mIndent;
+
 
     public ProviderHelper(Context context) {
         this(context, new OperationLog(), 0);
@@ -122,28 +124,37 @@ public class ProviderHelper {
         mContentResolver = context.getContentResolver();
         mLog = log;
         mIndent = indent;
+        mReader = ProviderReader.newInstance(this, mContentResolver);
+    }
+
+    public static <T extends ProviderReader> ProviderHelper getNewInstanceForTest(Context context,
+                                                                                  Object outerObject, Class<T> readerClass)
+    throws Exception {
+        return new ProviderHelper(context, new OperationLog(), 0, outerObject, readerClass);
+    }
+
+    // for test use only
+    private <T extends ProviderReader> ProviderHelper(Context context, OperationLog log, int indent,
+                                                      Object outerObject, Class<T> customReaderClass) throws Exception {
+        mContext = context;
+        mContentResolver = context.getContentResolver();
+        mLog = log;
+        mIndent = indent;
+
+        // use reflection to create an instance of the custom reader
+        mReader = customReaderClass.getDeclaredConstructor(
+                outerObject.getClass(),
+                ProviderHelper.class,
+                ContentResolver.class
+        ).newInstance(outerObject, this, mContentResolver);
+    }
+
+    public int getIndent() {
+        return mIndent;
     }
 
     public OperationLog getLog() {
         return mLog;
-    }
-
-    public static class NotFoundException extends Exception {
-        public NotFoundException() {
-        }
-
-        public NotFoundException(String name) {
-            super(name);
-        }
-    }
-
-    public static class FailedMergeException extends Exception {
-        public FailedMergeException() {
-        }
-
-        public FailedMergeException(String name) {
-            super(name);
-        }
     }
 
     public void log(LogType type) {
@@ -162,278 +173,6 @@ public class ProviderHelper {
         mLog = new OperationLog();
     }
 
-    public Object getGenericData(Uri uri, String column, int type) throws NotFoundException {
-        Object result = getGenericData(uri, new String[]{column}, new int[]{type}, null).get(column);
-        if (result == null) {
-            throw new NotFoundException();
-        }
-        return result;
-    }
-
-    public Object getGenericData(Uri uri, String column, int type, String selection)
-            throws NotFoundException {
-        return getGenericData(uri, new String[]{column}, new int[]{type}, selection).get(column);
-    }
-
-    public HashMap<String, Object> getGenericData(Uri uri, String[] proj, int[] types)
-            throws NotFoundException {
-        return getGenericData(uri, proj, types, null);
-    }
-
-    public HashMap<String, Object> getGenericData(Uri uri, String[] proj, int[] types, String selection)
-            throws NotFoundException {
-        Cursor cursor = mContentResolver.query(uri, proj, selection, null, null);
-
-        try {
-            HashMap<String, Object> result = new HashMap<>(proj.length);
-            if (cursor != null && cursor.moveToFirst()) {
-                int pos = 0;
-                for (String p : proj) {
-                    switch (types[pos]) {
-                        case Cursor.FIELD_TYPE_NULL:
-                            result.put(p, cursor.isNull(pos));
-                            break;
-                        case Cursor.FIELD_TYPE_INTEGER:
-                            result.put(p, cursor.getLong(pos));
-                            break;
-                        case Cursor.FIELD_TYPE_FLOAT:
-                            result.put(p, cursor.getFloat(pos));
-                            break;
-                        case Cursor.FIELD_TYPE_STRING:
-                            result.put(p, cursor.getString(pos));
-                            break;
-                        case Cursor.FIELD_TYPE_BLOB:
-                            result.put(p, cursor.getBlob(pos));
-                            break;
-                    }
-                    pos += 1;
-                }
-            } else {
-                // If no data was found, throw an appropriate exception
-                throw new NotFoundException();
-            }
-
-            return result;
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-    }
-
-    public HashMap<String, Object> getUnifiedData(long masterKeyId, String[] proj, int[] types)
-            throws NotFoundException {
-        return getGenericData(KeyRings.buildUnifiedKeyRingUri(masterKeyId), proj, types);
-    }
-
-    private LongSparseArray<CanonicalizedPublicKey> getTrustedMasterKeys() {
-        Cursor cursor = mContentResolver.query(KeyRings.buildUnifiedKeyRingsUri(), new String[]{
-                KeyRings.MASTER_KEY_ID,
-                // we pick from cache only information that is not easily available from keyrings
-                KeyRings.HAS_ANY_SECRET, KeyRings.VERIFIED,
-                // and of course, ring data
-                KeyRings.PUBKEY_DATA
-        }, KeyRings.HAS_ANY_SECRET + " = 1", null, null);
-
-        try {
-            LongSparseArray<CanonicalizedPublicKey> result = new LongSparseArray<>();
-
-            if (cursor != null && cursor.moveToFirst()) do {
-                long masterKeyId = cursor.getLong(0);
-                int verified = cursor.getInt(2);
-                byte[] blob = cursor.getBlob(3);
-                if (blob != null) {
-                    result.put(masterKeyId,
-                            new CanonicalizedPublicKeyRing(blob, verified).getPublicKey());
-                }
-            } while (cursor.moveToNext());
-
-            return result;
-
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-
-    }
-
-    public long getMasterKeyId(long subKeyId) throws NotFoundException {
-        return (Long) getGenericData(KeyRings.buildUnifiedKeyRingsFindBySubkeyUri(subKeyId),
-                KeyRings.MASTER_KEY_ID, Cursor.FIELD_TYPE_INTEGER);
-    }
-
-    public CachedPublicKeyRing getCachedPublicKeyRing(Uri queryUri) throws PgpKeyNotFoundException {
-        long masterKeyId = new CachedPublicKeyRing(this, queryUri).extractOrGetMasterKeyId();
-        return getCachedPublicKeyRing(masterKeyId);
-    }
-
-    public CachedPublicKeyRing getCachedPublicKeyRing(long id) {
-        return new CachedPublicKeyRing(this, KeyRings.buildUnifiedKeyRingUri(id));
-    }
-
-    public CanonicalizedPublicKeyRing getCanonicalizedPublicKeyRing(long id) throws NotFoundException {
-        return getCanonicalizedPublicKeyRing(KeyRings.buildUnifiedKeyRingUri(id));
-    }
-
-    public CanonicalizedPublicKeyRing getCanonicalizedPublicKeyRing(Uri queryUri) throws NotFoundException {
-        Cursor cursor = mContentResolver.query(queryUri,
-                new String[]{
-                        // we pick from cache only information that is not easily available from keyrings
-                        KeyRings.VERIFIED,
-                        // and of course, ring data
-                        KeyRings.PUBKEY_DATA
-                }, null, null, null
-        );
-        try {
-            if (cursor != null && cursor.moveToFirst()) {
-
-                int verified = cursor.getInt(0);
-                byte[] blob = cursor.getBlob(1);
-                return new CanonicalizedPublicKeyRing(blob, verified);
-            } else {
-                throw new NotFoundException("Key not found!");
-            }
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-    }
-
-    public ArrayList<String> getConfirmedUserIds(long masterKeyId) throws NotFoundException {
-        Cursor cursor = mContentResolver.query(UserPackets.buildUserIdsUri(masterKeyId),
-                new String[]{ UserPackets.USER_ID }, UserPackets.VERIFIED + " = " + Certs.VERIFIED_SECRET, null, null
-        );
-        if (cursor == null) {
-            throw new NotFoundException("Key id for requested user ids not found");
-        }
-
-        try {
-            ArrayList<String> userIds = new ArrayList<>(cursor.getCount());
-            while (cursor.moveToNext()) {
-                String userId = cursor.getString(0);
-                userIds.add(userId);
-            }
-
-            return userIds;
-        } finally {
-            cursor.close();
-        }
-    }
-
-    public CanonicalizedSecretKeyRing getCanonicalizedSecretKeyRingForTest(long id)
-        throws NotFoundException, EncryptDecryptException, IncorrectPassphraseException, FailedMergeException {
-        return getCanonicalizedSecretKeyRingHelper(KeyRings.buildUnifiedKeyRingUri(id), null, false, false);
-    }
-
-    /**
-     * Retrieves and merges a canonicalized secret keyring with its updated public counterpart if flagged for a merge
-     */
-    public CanonicalizedSecretKeyRing getCanonicalizedSecretKeyRingWithMerge(long id, Passphrase passphrase)
-            throws NotFoundException, EncryptDecryptException, IncorrectPassphraseException, FailedMergeException {
-        return getCanonicalizedSecretKeyRingHelper(KeyRings.buildUnifiedKeyRingUri(id), passphrase, true, false);
-    }
-
-    public CanonicalizedSecretKeyRing getCanonicalizedSecretKeyRing(Uri uri, Passphrase passphrase)
-            throws NotFoundException, EncryptDecryptException, IncorrectPassphraseException, FailedMergeException {
-        return getCanonicalizedSecretKeyRingHelper(uri, passphrase, true, true);
-    }
-
-    public CanonicalizedSecretKeyRing getCanonicalizedSecretKeyRing(long id, Passphrase passphrase)
-            throws NotFoundException, EncryptDecryptException, IncorrectPassphraseException {
-        try {
-            return getCanonicalizedSecretKeyRingHelper(KeyRings.buildUnifiedKeyRingUri(id), passphrase, true, true);
-        } catch (FailedMergeException ignored) {
-            return null;
-        }
-    }
-
-    private CanonicalizedSecretKeyRing getCanonicalizedSecretKeyRingHelper(Uri uri, Passphrase passphrase,
-                                                                           boolean isEncrypted, boolean skipMerge)
-            throws NotFoundException, EncryptDecryptException, IncorrectPassphraseException, FailedMergeException {
-        if (passphrase == null && isEncrypted) {
-            throw new IllegalArgumentException("passphrase is null");
-        }
-        Cursor cursor = mContentResolver.query(uri,
-                new String[]{
-                        // we pick from cache only information that is not easily available from keyrings
-                        KeyRings.HAS_ANY_SECRET, KeyRings.VERIFIED,
-                        // and of course, ring data and data for merging
-                        KeyRings.PRIVKEY_DATA, KeyRings.AWAITING_MERGE,
-                        // TODO: move pub data collection into merge block to improve performance?
-                        KeyRings.PUBKEY_DATA
-                }, null, null, null
-        );
-        try {
-            if (cursor != null && cursor.moveToFirst()) {
-
-                boolean hasAnySecret = cursor.getInt(0) > 0;
-                int verified = cursor.getInt(1);
-                byte[] secBlob = cursor.getBlob(2);
-                boolean awaitingMerge = cursor.getInt(3) == 1;
-                if (!hasAnySecret) {
-                    throw new NotFoundException("Secret key not available!");
-                }
-                if (isEncrypted) {
-                    secBlob = ByteArrayEncryptor.decryptByteArray(secBlob, passphrase.getCharArray());
-                }
-
-                CanonicalizedSecretKeyRing canSecretKey = new CanonicalizedSecretKeyRing(secBlob, false, verified);
-
-                if (skipMerge || !awaitingMerge) {
-                    return canSecretKey;
-                } else {
-                    byte[] pubBlob = cursor.getBlob(4);
-                    long masterKeyId = canSecretKey.getMasterKeyId();
-                    KeyringPassphrases passphrases = new KeyringPassphrases(masterKeyId, passphrase);
-
-                    try {
-                        // merge public into secret
-                        UncachedKeyRing secretKey = canSecretKey.getUncachedKeyRing();
-                        UncachedKeyRing publicKey = new CanonicalizedPublicKeyRing(pubBlob, verified).getUncachedKeyRing();
-                        secretKey = secretKey.merge(publicKey, new OperationLog(), 0);
-                        if (secretKey == null) {
-                            throw new FailedMergeException();
-                        }
-
-                        // canonicalize merged key
-                        CanonicalizedSecretKeyRing mergedCanSecret =
-                                (CanonicalizedSecretKeyRing) secretKey.canonicalize(new OperationLog(), 0);
-                        if (mergedCanSecret == null) {
-                            throw new FailedMergeException();
-                        }
-
-                        // save canonicalized key
-                        int result = saveCanonicalizedSecretKeyRing(mergedCanSecret, passphrases, false);
-                        if ((result & SaveKeyringResult.SAVED_SECRET)!= SaveKeyringResult.SAVED_SECRET) {
-                            throw new FailedMergeException();
-                        }
-                        return mergedCanSecret;
-
-                    } catch (FailedMergeException e) {
-                        // wipe all existing keyring data from db & reload data using secret keyring
-                        // should succeed as the secret keyring was saved before
-
-                        mContentResolver.delete(KeyRingData.buildPublicKeyRingUri(masterKeyId), null, null);
-                        SaveKeyringResult saveResult = saveSecretKeyRing(canSecretKey.getUncachedKeyRing(),
-                                passphrases, new ProgressScaler());
-                        if (!saveResult.success()) {
-                            throw new RuntimeException("Unrecoverable error, io/bad secret key");
-                        } else {
-                            throw new FailedMergeException("Merge failed but key was successfully restored");
-                        }
-                    }
-                }
-            } else {
-                throw new NotFoundException("Key not found!");
-            }
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-    }
 
     // bits, in order: CESA. make SURE these are correct, we will get bad log entries otherwise!!
     static final LogType LOG_TYPES_FLAG_MASTER[] = new LogType[]{
@@ -877,6 +616,38 @@ public class ProviderHelper {
 
     }
 
+    private LongSparseArray<CanonicalizedPublicKey> getTrustedMasterKeys() {
+        Cursor cursor = mContentResolver.query(KeyRings.buildUnifiedKeyRingsUri(), new String[]{
+                KeyRings.MASTER_KEY_ID,
+                // we pick from cache only information that is not easily available from keyrings
+                KeyRings.HAS_ANY_SECRET, KeyRings.VERIFIED,
+                // and of course, ring data
+                KeyRings.PUBKEY_DATA
+        }, KeyRings.HAS_ANY_SECRET + " = 1", null, null);
+
+        try {
+            LongSparseArray<CanonicalizedPublicKey> result = new LongSparseArray<>();
+
+            if (cursor != null && cursor.moveToFirst()) do {
+                long masterKeyId = cursor.getLong(0);
+                int verified = cursor.getInt(2);
+                byte[] blob = cursor.getBlob(3);
+                if (blob != null) {
+                    result.put(masterKeyId,
+                            new CanonicalizedPublicKeyRing(blob, verified).getPublicKey());
+                }
+            } while (cursor.moveToNext());
+
+            return result;
+
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+    }
+
     private static class UserPacketItem implements Comparable<UserPacketItem> {
         Integer type;
         String userId;
@@ -1090,7 +861,7 @@ public class ProviderHelper {
 
             // If there is an old keyring, merge it
             try {
-                UncachedKeyRing oldPublicRing = getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
+                UncachedKeyRing oldPublicRing = mReader.getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
 
                 // Merge data from new public ring into the old one
                 log(LogType.MSG_IP_MERGE_PUBLIC);
@@ -1113,7 +884,7 @@ public class ProviderHelper {
                     log(LogType.MSG_IP_SUCCESS_IDENTICAL);
                     return new SaveKeyringResult(SaveKeyringResult.UPDATED, mLog, null);
                 }
-            } catch (NotFoundException e) {
+            } catch (ProviderReader.NotFoundException e) {
                 // Not an issue, just means we are dealing with a new keyring.
 
                 // Canonicalize this keyring, to assert a number of assumptions made about it.
@@ -1153,9 +924,9 @@ public class ProviderHelper {
                 try {
                     passphrase = PassphraseCacheService.getCachedPassphrase(mContext,
                             publicRing.getMasterKeyId());
-                    secretRing = getCanonicalizedSecretKeyRing(publicRing.getMasterKeyId(), passphrase)
+                    secretRing = mReader.getCanonicalizedSecretKeyRing(publicRing.getMasterKeyId(), passphrase)
                             .getUncachedKeyRing();
-                } catch (PassphraseCacheService.KeyNotFoundException | NotFoundException ignored) {}
+                } catch (PassphraseCacheService.KeyNotFoundException | ProviderReader.NotFoundException ignored) {}
 
                 if (secretRing != null) {
                     // we got our secret ring, merge data from new public ring into secret one
@@ -1255,10 +1026,10 @@ public class ProviderHelper {
                 // all self-certificates from the public key.
                 try {
                     log(LogType.MSG_IS_MERGE_SPECIAL);
-                    UncachedKeyRing oldPublicRing = getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
+                    UncachedKeyRing oldPublicRing = mReader.getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
                     secretRing = secretRing.merge(oldPublicRing, mLog, mIndent);
                     canSecretRing = (CanonicalizedSecretKeyRing) secretRing.canonicalize(mLog, mIndent);
-                } catch (NotFoundException e2) {
+                } catch (ProviderReader.NotFoundException e2) {
                     return new SaveKeyringResult(SaveKeyringResult.RESULT_ERROR, mLog, null);
                 }
             }
@@ -1266,7 +1037,7 @@ public class ProviderHelper {
             // Merge new data into public keyring, if there is any
             UncachedKeyRing publicRing;
             try {
-                UncachedKeyRing oldPublicRing = getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
+                UncachedKeyRing oldPublicRing = mReader.getCanonicalizedPublicKeyRing(masterKeyId).getUncachedKeyRing();
 
                 // Merge data from new secret ring into public one
                 log(LogType.MSG_IS_MERGE_PUBLIC);
@@ -1275,7 +1046,7 @@ public class ProviderHelper {
                     return new SaveKeyringResult(SaveKeyringResult.RESULT_ERROR, mLog, null);
                 }
 
-            } catch (NotFoundException e) {
+            } catch (ProviderReader.NotFoundException e) {
                 log(LogType.MSG_IS_PUBRING_GENERATE);
                 publicRing = secretRing.extractPublicKeyRing();
             }
@@ -1935,8 +1706,8 @@ public class ProviderHelper {
     }
 
     public String getKeyRingAsArmoredString(Uri uri)
-            throws NotFoundException, IOException, PgpGeneralException {
-        byte[] data = (byte[]) getGenericData(
+            throws ProviderReader.NotFoundException, IOException, PgpGeneralException {
+        byte[] data = (byte[]) mReader.getGenericData(
                 uri, KeyRingData.KEY_RING_DATA, Cursor.FIELD_TYPE_BLOB);
         return getKeyRingAsArmoredString(data);
     }

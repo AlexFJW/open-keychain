@@ -18,6 +18,7 @@ import org.sufficientlysecure.keychain.pgp.PgpKeyOperation;
 import org.sufficientlysecure.keychain.pgp.UncachedKeyRing;
 import org.sufficientlysecure.keychain.provider.ByteArrayEncryptor;
 import org.sufficientlysecure.keychain.provider.ProviderHelper;
+import org.sufficientlysecure.keychain.provider.ProviderReader;
 import org.sufficientlysecure.keychain.service.ChangeUnlockParcel;
 import org.sufficientlysecure.keychain.service.SaveKeyringParcel;
 import org.sufficientlysecure.keychain.service.input.CryptoInputParcel;
@@ -110,12 +111,12 @@ public class ChangeUnlockOperationTest {
         assertTrue("change unlock should succeed", result.success());
 
         try {
-            providerHelper.getCanonicalizedSecretKeyRingWithMerge(mStaticRing.getMasterKeyId(), newPassphrase);
-        } catch (ProviderHelper.NotFoundException | ByteArrayEncryptor.EncryptDecryptException e) {
+            providerHelper.mReader.getCanonicalizedSecretKeyRingWithMerge(mStaticRing.getMasterKeyId(), newPassphrase);
+        } catch (ProviderReader.NotFoundException | ByteArrayEncryptor.EncryptDecryptException e) {
             Assert.fail("IO error when retrieving key!");
         } catch (ByteArrayEncryptor.IncorrectPassphraseException e){
             Assert.fail("Keyring has an unknown passphrase!");
-        } catch (ProviderHelper.FailedMergeException e) {
+        } catch (ProviderReader.FailedMergeException e) {
             Assert.fail("merge should not fail (if any)");
         }
     }

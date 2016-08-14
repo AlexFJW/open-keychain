@@ -123,8 +123,8 @@ public class ProviderHelperSaveTest {
 
         mProviderHelper.savePublicKeyRing(pub);
 
-        CachedPublicKeyRing cachedRing = mProviderHelper.getCachedPublicKeyRing(keyId);
-        CanonicalizedPublicKeyRing pubRing = mProviderHelper.getCanonicalizedPublicKeyRing(keyId);
+        CachedPublicKeyRing cachedRing = mProviderHelper.mReader.getCachedPublicKeyRing(keyId);
+        CanonicalizedPublicKeyRing pubRing = mProviderHelper.mReader.getCanonicalizedPublicKeyRing(keyId);
 
         Assert.assertEquals("master key should be encryption key", keyId, pubRing.getEncryptId());
         Assert.assertEquals("master key should be encryption key (cached)", keyId, cachedRing.getEncryptId());
@@ -149,8 +149,8 @@ public class ProviderHelperSaveTest {
 
         // make sure both the CanonicalizedSecretKeyRing as well as the CachedPublicKeyRing correctly
         // indicate the secret key type
-        CachedPublicKeyRing cachedRing = mProviderHelper.getCachedPublicKeyRing(keyId);
-        CanonicalizedSecretKeyRing secRing = mProviderHelper.getCanonicalizedSecretKeyRingForTest(keyId);
+        CachedPublicKeyRing cachedRing = mProviderHelper.mReader.getCachedPublicKeyRing(keyId);
+        CanonicalizedSecretKeyRing secRing = mProviderHelper.mReader.getCanonicalizedSecretKeyRingForTest(keyId);
 
         Iterator<CanonicalizedSecretKey> it = secRing.secretKeyIterator().iterator();
 
@@ -211,7 +211,7 @@ public class ProviderHelperSaveTest {
         result = mProviderHelper.savePublicKeyRing(key);
         Assert.assertTrue("import of keyring should succeed", result.success());
 
-        CanonicalizedPublicKeyRing ring = mProviderHelper.getCanonicalizedPublicKeyRing(keyId);
+        CanonicalizedPublicKeyRing ring = mProviderHelper.mReader.getCanonicalizedPublicKeyRing(keyId);
         boolean found = false;
         byte[] badUserId = Hex.decode("436c61757320467261656e6b656c203c436c6175732e4672e46e6b656c4068616c696661782e727774682d61616368656e2e64653e");
         for (byte[] rawUserId : new IterableIterator<>(
@@ -240,17 +240,17 @@ public class ProviderHelperSaveTest {
 
         long signId;
         {
-            CanonicalizedSecretKeyRing ring = mProviderHelper.getCanonicalizedSecretKeyRingForTest(masterKeyId);
+            CanonicalizedSecretKeyRing ring = mProviderHelper.mReader.getCanonicalizedSecretKeyRingForTest(masterKeyId);
             Assert.assertTrue("master key should have sign flag", ring.getPublicKey().canSign());
             Assert.assertTrue("master key should have encrypt flag", ring.getPublicKey().canEncrypt());
 
-            signId = mProviderHelper.getCachedPublicKeyRing(masterKeyId).getSecretSignId();
+            signId = mProviderHelper.mReader.getCachedPublicKeyRing(masterKeyId).getSecretSignId();
             Assert.assertNotEquals("encrypt id should not be 0", 0, signId);
             Assert.assertNotEquals("encrypt key should be different from master key", masterKeyId, signId);
         }
 
         {
-            CachedPublicKeyRing ring = mProviderHelper.getCachedPublicKeyRing(masterKeyId);
+            CachedPublicKeyRing ring = mProviderHelper.mReader.getCachedPublicKeyRing(masterKeyId);
             Assert.assertEquals("signing key should be same id cached as uncached", signId, ring.getSecretSignId());
         }
 
@@ -269,7 +269,7 @@ public class ProviderHelperSaveTest {
 
         // retrieve key
         CanonicalizedSecretKeyRing retrievedSecKeyRing =
-                mProviderHelper.getCanonicalizedSecretKeyRing(secKey.getMasterKeyId(), keyringPassphrase);
+                mProviderHelper.mReader.getCanonicalizedSecretKeyRing(secKey.getMasterKeyId(), keyringPassphrase);
 
         for (CanonicalizedSecretKey key : canSecKeyRing.secretKeyIterator()) {
             Assert.assertNotNull("Failed to save a key & re-encrypt",
@@ -324,7 +324,7 @@ public class ProviderHelperSaveTest {
 
         // Force the merge by retrieving secret key
         CanonicalizedSecretKeyRing mergedSecRing =
-                mProviderHelper.getCanonicalizedSecretKeyRingWithMerge(masterKeyId, keyringPassphrase);
+                mProviderHelper.mReader.getCanonicalizedSecretKeyRingWithMerge(masterKeyId, keyringPassphrase);
 
         int keyCount = 0;
         Iterator<UncachedPublicKey> keys = mergedSecRing.getUncachedKeyRing().getPublicKeys();

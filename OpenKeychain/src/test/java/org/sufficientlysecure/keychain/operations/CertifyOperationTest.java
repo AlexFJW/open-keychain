@@ -134,7 +134,7 @@ public class CertifyOperationTest {
     public void testSelfCertifyFlag() throws Exception {
 
         CanonicalizedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                .getCanonicalizedPublicKeyRing(mStaticRing1.getMasterKeyId());
+                .mReader.getCanonicalizedPublicKeyRing(mStaticRing1.getMasterKeyId());
         Assert.assertEquals("secret key must be marked self-certified in database",
                 // TODO this should be more correctly be VERIFIED_SELF at some point!
                 Certs.VERIFIED_SECRET, ring.getVerified());
@@ -148,7 +148,7 @@ public class CertifyOperationTest {
 
         {
             CanonicalizedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
+                    .mReader.getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
             Assert.assertEquals("public key must not be marked verified prior to certification",
                     Certs.UNVERIFIED, ring.getVerified());
         }
@@ -162,7 +162,7 @@ public class CertifyOperationTest {
 
         {
             CanonicalizedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
+                    .mReader.getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
             Assert.assertEquals("new key must be verified now",
                     Certs.VERIFIED_SECRET, ring.getVerified());
         }
@@ -176,7 +176,7 @@ public class CertifyOperationTest {
 
         {
             CanonicalizedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
+                    .mReader.getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
             Assert.assertEquals("public key must not be marked verified prior to certification",
                     Certs.UNVERIFIED, ring.getVerified());
         }
@@ -190,7 +190,7 @@ public class CertifyOperationTest {
 
         {
             CanonicalizedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
+                    .mReader.getCanonicalizedPublicKeyRing(mStaticRing2.getMasterKeyId());
             Assert.assertEquals("new key must be verified now",
                     Certs.VERIFIED_SECRET, ring.getVerified());
         }

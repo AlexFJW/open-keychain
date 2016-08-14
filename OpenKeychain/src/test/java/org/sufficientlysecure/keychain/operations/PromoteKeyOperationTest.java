@@ -113,7 +113,7 @@ public class PromoteKeyOperationTest {
 
         {
             CachedPublicKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCachedPublicKeyRing(mStaticRing.getMasterKeyId());
+                    .mReader.getCachedPublicKeyRing(mStaticRing.getMasterKeyId());
             Assert.assertTrue("key must have a secret now", ring.hasAnySecret());
 
             Iterator<UncachedPublicKey> it = mStaticRing.getPublicKeys();
@@ -139,7 +139,7 @@ public class PromoteKeyOperationTest {
 
         {
             CanonicalizedSecretKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedSecretKeyRing(mStaticRing.getMasterKeyId(), new Passphrase());
+                    .mReader.getCanonicalizedSecretKeyRing(mStaticRing.getMasterKeyId(), new Passphrase());
 
             for (CanonicalizedSecretKey key : ring.secretKeyIterator()) {
                 Assert.assertEquals("all subkeys must be divert-to-card",
@@ -169,7 +169,7 @@ public class PromoteKeyOperationTest {
 
         {
             CanonicalizedSecretKeyRing ring = new ProviderHelper(RuntimeEnvironment.application)
-                    .getCanonicalizedSecretKeyRing(mStaticRing.getMasterKeyId(), new Passphrase());
+                    .mReader.getCanonicalizedSecretKeyRing(mStaticRing.getMasterKeyId(), new Passphrase());
 
             for (CanonicalizedSecretKey key : ring.secretKeyIterator()) {
                 if (key.getKeyId() == keyId) {
