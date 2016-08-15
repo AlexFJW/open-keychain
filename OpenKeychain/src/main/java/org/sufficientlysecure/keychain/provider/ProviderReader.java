@@ -24,8 +24,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class ProviderReader {
-    protected ProviderHelper mProviderHelper;
-    protected ContentResolver mContentResolver;
+    private ProviderHelper mProviderHelper;
+    private ContentResolver mContentResolver;
 
     protected ProviderReader(ProviderHelper helper, ContentResolver resolver) {
         mProviderHelper = helper;

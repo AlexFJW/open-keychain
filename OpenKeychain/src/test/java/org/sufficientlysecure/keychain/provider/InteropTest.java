@@ -284,8 +284,11 @@ public class InteropTest {
     Uri verifyUri;
 
     private class CustomReader extends ProviderReader {
+        private ProviderHelper mProviderHelper;
+
         public CustomReader(ProviderHelper helper, ContentResolver resolver) {
-           super(helper, resolver);
+            super(helper, resolver);
+            mProviderHelper = helper;
         }
 
         @Override
