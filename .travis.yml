@@ -45,4 +45,4 @@ android:
 
 script:
     # - ./gradlew connectedAndroidTest
-    - ./gradlew --stacktrace testDebug jacocoTestReport coveralls
+    - ./gradlew --stacktrace testDebug jacocoTestReport
