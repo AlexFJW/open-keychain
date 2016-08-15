@@ -263,7 +263,7 @@ public class InteropTest {
                 KeyRings.buildUnifiedKeyRingsFindBySubkeyUri(verify.getMasterKeyId()) : null;
 
         Context context = RuntimeEnvironment.application;
-        ProviderHelper helper = ProviderHelper.getNewInstanceForTest(context, this, CustomReader.class);
+        ProviderHelper helper = ProviderHelper.useCustomReaderForTest(context, this, CustomReader.class);
 
         return new PgpDecryptVerifyOperation(RuntimeEnvironment.application, helper, null) {
             @Override

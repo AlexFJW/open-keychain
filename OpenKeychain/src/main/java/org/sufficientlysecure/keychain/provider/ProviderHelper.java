@@ -105,10 +105,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class ProviderHelper {
     public final ProviderReader mReader;
-    private final Context mContext;
+    public final ProviderWriter mWriter;
+    protected final Context mContext;
     private final ContentResolver mContentResolver;
     private OperationLog mLog;
-    private int mIndent;
+
+    protected int mIndent;
 
 
     public ProviderHelper(Context context) {
@@ -125,10 +127,11 @@ public class ProviderHelper {
         mLog = log;
         mIndent = indent;
         mReader = ProviderReader.newInstance(this, mContentResolver);
+        mWriter = ProviderWriter.newInstance(this, mContentResolver);
     }
 
-    public static <T extends ProviderReader> ProviderHelper getNewInstanceForTest(Context context,
-                                                                                  Object outerObject, Class<T> readerClass)
+    public static <T extends ProviderReader>
+    ProviderHelper useCustomReaderForTest(Context context, Object outerObject, Class<T> readerClass)
     throws Exception {
         return new ProviderHelper(context, new OperationLog(), 0, outerObject, readerClass);
     }
@@ -140,6 +143,7 @@ public class ProviderHelper {
         mContentResolver = context.getContentResolver();
         mLog = log;
         mIndent = indent;
+        mWriter = ProviderWriter.newInstance(this, mContentResolver);
 
         // use reflection to create an instance of the custom reader
         mReader = customReaderClass.getDeclaredConstructor(
@@ -147,10 +151,6 @@ public class ProviderHelper {
                 ProviderHelper.class,
                 ContentResolver.class
         ).newInstance(outerObject, this, mContentResolver);
-    }
-
-    public int getIndent() {
-        return mIndent;
     }
 
     public OperationLog getLog() {
@@ -173,6 +173,9 @@ public class ProviderHelper {
         mLog = new OperationLog();
     }
 
+    public ContentResolver getContentResolver() {
+        return mContentResolver;
+    }
 
     // bits, in order: CESA. make SURE these are correct, we will get bad log entries otherwise!!
     static final LogType LOG_TYPES_FLAG_MASTER[] = new LogType[]{
@@ -1078,6 +1081,7 @@ public class ProviderHelper {
 
     }
 
+    //TODO stop here for now
 
     @NonNull
     public MigrateSymmetricResult createSecretKeyRingCache(Progressable progress, String fileName) {
@@ -1305,7 +1309,7 @@ public class ProviderHelper {
 
     }
 
-    private EncryptedSecretKeyRing getSecretKeyringData(long masterKeyId) {
+    protected EncryptedSecretKeyRing getSecretKeyringData(long masterKeyId) {
         EncryptedSecretKeyRing data = null;
         final int INDEX_SECRET_KEY_BLOB = 0;
         final int INDEX_AWAITING_MERGE_INT = 1;
@@ -1543,6 +1547,7 @@ public class ProviderHelper {
 
     }
 
+    // TODO start downwards
     private WriteKeyRingsResult writeSecretKeyRingToDb(@NonNull EncryptedSecretKeyRing data) {
         ArrayList<EncryptedSecretKeyRing> container = new ArrayList<>();
         container.add(data);
@@ -1720,7 +1725,4 @@ public class ProviderHelper {
         return mContentResolver.insert(UpdatedKeys.CONTENT_URI, values);
     }
 
-    public ContentResolver getContentResolver() {
-        return mContentResolver;
-    }
 }
