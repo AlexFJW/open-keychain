@@ -29,15 +29,15 @@ public final class ByteArrayEncryptor {
 
     private ByteArrayEncryptor() {}
 
-    public static byte[] encryptByteArray(byte[] keyData, char[] passphrase)
+    public static byte[] encryptByteArray(byte[] forEncrypting, char[] passphrase)
             throws EncryptDecryptException{
         try {
             // handle empty passphrase
             if (passphrase.length == 0) {
-                return new EncryptedData(keyData, new byte[0], new byte[0]).toBytes();
+                return new EncryptedData(forEncrypting, new byte[0], new byte[0]).toBytes();
             }
 
-            keyData = keyData.clone();
+            forEncrypting = forEncrypting.clone();
             SecureRandom random = new SecureRandom();
 
             byte[] salt = new byte[SALT_LENGTH];
@@ -50,7 +50,7 @@ public final class ByteArrayEncryptor {
             IvParameterSpec ivParameterSpec = new IvParameterSpec(iv);
             cipher.init(Cipher.ENCRYPT_MODE, key, ivParameterSpec);
 
-            byte[] encryptedKeyRing = cipher.doFinal(keyData);
+            byte[] encryptedKeyRing = cipher.doFinal(forEncrypting);
 
             EncryptedData keyRing = new EncryptedData(encryptedKeyRing, iv, salt);
             return keyRing.toBytes();
@@ -73,11 +73,11 @@ public final class ByteArrayEncryptor {
         return new SecretKeySpec(keyBytes, "AES");
     }
 
-    public static byte[] decryptByteArray(byte[] storedData, char[] passphrase)
+    public static byte[] decryptByteArray(byte[] forDecrypting, char[] passphrase)
             throws EncryptDecryptException, IncorrectPassphraseException {
         try {
-            storedData = storedData.clone();
-            EncryptedData encryptedData = EncryptedData.fromBytes(storedData);
+            forDecrypting = forDecrypting.clone();
+            EncryptedData encryptedData = EncryptedData.fromBytes(forDecrypting);
 
             // handle empty passphrase
             boolean usesEmptyPassphrase = (encryptedData.mIv.length == 0 && encryptedData.mSalt.length == 0);

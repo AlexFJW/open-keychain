@@ -16,11 +16,13 @@ import org.sufficientlysecure.keychain.provider.KeychainContract.Certs;
 import org.sufficientlysecure.keychain.provider.KeychainContract.KeyRingData;
 import org.sufficientlysecure.keychain.provider.KeychainContract.KeyRings;
 import org.sufficientlysecure.keychain.provider.KeychainContract.UserPackets;
+import org.sufficientlysecure.keychain.provider.KeychainContract.MasterPassphrase;
 import org.sufficientlysecure.keychain.util.KeyringPassphrases;
 import org.sufficientlysecure.keychain.util.Passphrase;
 import org.sufficientlysecure.keychain.util.ProgressScaler;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 public class ProviderReader {
@@ -99,6 +101,39 @@ public class ProviderReader {
     public HashMap<String, Object> getUnifiedData(long masterKeyId, String[] proj, int[] types)
             throws ProviderReader.NotFoundException {
         return getGenericData(KeyRings.buildUnifiedKeyRingUri(masterKeyId), proj, types);
+    }
+
+    public boolean hasMasterPassphrase() {
+        return getBlobEncryptedByMasterPassphrase() != null;
+    }
+
+    private byte[] getBlobEncryptedByMasterPassphrase() {
+        Cursor cursor = mContentResolver.query(MasterPassphrase.CONTENT_URI,
+                new String[] {
+                        MasterPassphrase.ENCRYPTED_BLOCK
+                }, null, null, null);
+        try {
+            if (cursor != null && cursor.moveToFirst()) {
+                return cursor.getBlob(0);
+            } else {
+                return null;
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+    }
+
+    public boolean verifyMasterPassphrase(Passphrase passphrase) throws EncryptDecryptException {
+        try {
+            ByteArrayEncryptor.decryptByteArray(getBlobEncryptedByMasterPassphrase(),
+                    passphrase.getCharArray());
+        } catch (IncorrectPassphraseException e) {
+            return false;
+        }
+        return true;
     }
 
     public CachedPublicKeyRing getCachedPublicKeyRing(Uri queryUri) throws PgpKeyNotFoundException {

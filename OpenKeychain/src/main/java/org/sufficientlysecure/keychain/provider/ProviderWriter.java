@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 public class ProviderWriter {
@@ -100,6 +101,25 @@ public class ProviderWriter {
             LogType.MSG_IP_SUBKEY_FLAGS_XXSA, LogType.MSG_IP_SUBKEY_FLAGS_CXSA,
             LogType.MSG_IP_SUBKEY_FLAGS_XESA, LogType.MSG_IP_SUBKEY_FLAGS_CESA
     };
+
+    public boolean saveMasterPassphrase(Passphrase passphrase) throws EncryptDecryptException {
+        // TODO: change to a replace, instead of dropping the table
+        Uri uri = KeychainContract.MasterPassphrase.CONTENT_URI;
+        mContentResolver.delete(uri, null, null);
+        ContentValues values = new ContentValues();
+        values.put(KeychainContract.MasterPassphrase.ROW_INDEX, Constants.MasterPassphrase.MASTER_PASSPHRASE_INDEX);
+
+        // TODO: choose a proper size for byte array?
+        // encrypt a random array of bytes & use it for verification later
+        Random random = new Random();
+        byte[] arbitaryBytes = new byte[Constants.MasterPassphrase.BYTE_ARRAY_SIZE];
+        random.nextBytes(arbitaryBytes);
+        byte[] encrypted = ByteArrayEncryptor.encryptByteArray(arbitaryBytes, passphrase.getCharArray());
+
+        values.put(KeychainContract.MasterPassphrase.ENCRYPTED_BLOCK, encrypted);
+
+        return mContentResolver.insert(uri, values) != null;
+    }
 
     /**
      * Saves an UncachedKeyRing of the public variant into the db.
